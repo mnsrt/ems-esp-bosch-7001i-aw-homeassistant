@@ -1,0 +1,822 @@
+views:
+  - title: Overview
+    type: sections
+    max_columns: 4
+    badges:
+      - type: entity
+        show_name: true
+        show_state: true
+        show_icon: true
+        entity: sensor.boiler_hpactivity
+        icon: mdi:heat-pump-outline
+        name: Mode
+      - type: entity
+        show_name: true
+        show_state: true
+        show_icon: true
+        entity: select.boiler_silentmode
+        icon: mdi:fan-minus
+        name: Silent
+      - type: entity
+        show_name: false
+        show_state: true
+        show_icon: true
+        entity: sensor.boiler_hpcompspd
+      - type: entity
+        show_name: false
+        show_state: true
+        show_icon: true
+        entity: switch.boiler_dhw_disinfecting
+      - type: entity
+        entity: select.boiler_maxheatcomp
+      - type: entity
+        entity: select.boiler_maxheatheat
+      - type: entity
+        entity: select.boiler_dhw_maxheat
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: thermostat
+            entity: climate.thermostat_hc1
+            show_current_as_primary: false
+            name: Target Room Temp
+            grid_options:
+              columns: 12
+              rows: 5
+          - type: heading
+            heading: Current Values
+            heading_style: title
+            icon: mdi:heat-pump
+          - graph: line
+            type: sensor
+            entity: sensor.boiler_curburnpow
+            detail: 1
+            name: Modulation
+            icon: mdi:fan
+          - graph: line
+            type: sensor
+            entity: sensor.boiler_curflowtemp
+            detail: 1
+            name: Flow Temperature
+            icon: mdi:thermometer-lines
+          - graph: line
+            type: sensor
+            entity: sensor.boiler_hptw1
+            detail: 1
+            name: Hot Water Temp
+            icon: mdi:water-thermometer
+          - graph: line
+            type: sensor
+            entity: sensor.boiler_outdoortemp
+            detail: 1
+            name: Outdoor Temp
+            icon: mdi:home-thermometer-outline
+          - type: gauge
+            entity: sensor.boiler_hpcurrpower
+            name: Power Draw
+            unit: W
+            max: 7200
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: gauge
+            entity: sensor.hp_corrected_output
+            name: Real Heat Output
+            unit: kW
+            min: 0
+            max: 13
+            needle: true
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: gauge
+            entity: sensor.calculated_heat_pump_cop
+            name: Real-Time COP
+            min: 0
+            max: 6
+            needle: true
+            severity:
+              green: 3.5
+              yellow: 2
+              red: 0
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: gauge
+            entity: sensor.calculated_aux_heater_power
+            name: Aux Heater (Electric)
+            unit: W
+            min: 0
+            max: 9000
+            needle: true
+            grid_options:
+              columns: 6
+              rows: auto
+            severity:
+              green: 0
+              yellow: 0
+              red: 0
+          - type: history-graph
+            entities:
+              - entity: sensor.boiler_hpactivity
+                name: ' '
+            hours_to_show: 24
+            grid_options:
+              columns: full
+              rows: auto
+      - type: grid
+        cards:
+          - type: vertical-stack
+            cards:
+              - type: heading
+                heading: Energy Costs
+                heading_style: title
+              - type: heading
+                heading: Live Rates
+                heading_style: subtitle
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.fixed_tariff_current_price
+                    name: Fixed Tariff
+                    icon: mdi:tag-check
+                  - type: entity
+                    entity: sensor.nord_pool_current_price_with_taxes
+                    name: Market
+                    icon: mdi:cash
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.hp_fixed_running_cost
+                    name: Fixed Cost/h
+                    icon: mdi:currency-eur
+                  - type: entity
+                    entity: sensor.hp_live_running_cost
+                    name: Market Cost/h
+                    icon: mdi:currency-eur
+              - type: heading
+                heading: Today
+                heading_style: subtitle
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.daily_fixed_tariff_cost
+                    name: Fixed Cost
+                    icon: mdi:tag-check
+                  - type: entity
+                    entity: sensor.daily_energy_cost
+                    name: Market Cost
+                    icon: mdi:cash-clock
+                  - type: entity
+                    entity: sensor.daily_savings_vs_market
+                    name: Savings
+                    icon: mdi:piggy-bank
+              - type: heading
+                heading: This Month
+                heading_style: subtitle
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.monthly_fixed_tariff_cost
+                    name: Fixed Cost
+                    icon: mdi:tag-check
+                  - type: entity
+                    entity: sensor.monthly_energy_cost_market
+                    name: Market Cost
+                    icon: mdi:cash-clock
+                  - type: entity
+                    entity: sensor.monthly_savings_vs_market
+                    name: Savings
+                    icon: mdi:piggy-bank-outline
+              - graph: line
+                type: sensor
+                entity: sensor.total_daily_cop
+                name: Daily COP
+                detail: 2
+                hours_to_show: 48
+                limits:
+                  min: 0
+                  max: 6
+              - type: history-graph
+                title: Price vs Consumption (24h)
+                entities:
+                  - entity: sensor.nord_pool_ee_current_price
+                    name: Market Price
+                  - entity: sensor.boiler_hpcurrpower
+                    name: Power (W)
+                hours_to_show: 24
+              - type: entities
+                entities:
+                  - entity: sensor.daily_heating_produced
+                    name: Heat Produced
+                  - entity: sensor.daily_compressor_consumed
+                    name: Compressor Input
+                  - entity: sensor.daily_aux_consumed
+                    name: Aux Heating
+          - type: tile
+            entity: sensor.monthly_energy_trend
+            name: Energy vs Last Month
+            vertical: true
+            color: blue
+            state_content:
+              - state
+              - last-changed
+            card_mod:
+              style: |
+                ha-card {
+                  {% set trend = states('sensor.monthly_energy_trend') | float(0) %}
+                  background: {{ 'rgba(255, 0, 0, 0.15)' if trend > 0 else 'rgba(0, 255, 0, 0.15)' }};
+                  border: 2px solid {{ 'red' if trend > 0 else 'green' }};
+                  transition: all 0.5s ease;
+                }
+                .tile-name {
+                  font-weight: bold;
+                }
+          - type: horizontal-stack
+            cards:
+              - type: tile
+                entity: sensor.fixed_today_display
+                name: Fixed Today
+                icon: mdi:hammer
+                color: green
+                vertical: false
+                features_position: bottom
+                state_content:
+                  - state
+                  - percentage
+              - type: tile
+                entity: sensor.market_today_display
+                name: Market Today
+                icon: mdi:shopping
+                color: red
+                vertical: false
+                features_position: bottom
+                state_content:
+                  - state
+                  - percentage
+          - type: horizontal-stack
+            cards:
+              - type: tile
+                entity: sensor.daily_savings_vs_market
+                name: Savings Today
+                icon: mdi:cash
+                color: blue
+                vertical: false
+                features_position: bottom
+              - type: tile
+                entity: sensor.predicted_heating_cost_next_24h
+                name: Forecasted Cost
+                icon: mdi:hydro-power
+                color: purple
+                vertical: false
+                features_position: bottom
+      - type: grid
+        column_span: 2
+        cards:
+          - type: custom:apexcharts-card
+            experimental:
+              color_threshold: true
+            header:
+              show: true
+              title: NordPool electricity prices (today/tomorrow)
+              show_states: true
+              colorize_states: true
+            graph_span: 48h
+            span:
+              end: day
+              offset: +1d
+            now:
+              show: true
+              label: Now
+            yaxis:
+              - id: price
+                decimals: 1
+                apex_config:
+                  title:
+                    text: Price (snt/kWh)
+              - id: cost
+                opposite: true
+                decimals: 3
+                min: 0
+                apex_config:
+                  title:
+                    text: Cost (€/h)
+            series:
+              - entity: sensor.electricity_prices
+                name: Electricity prices
+                type: column
+                color: orange
+                unit: ' s/kWh'
+                yaxis_id: price
+                show:
+                  extremas: true
+                  in_header: before_now
+                float_precision: 3
+                data_generator: |
+                  return entity.attributes.data.map((entry, index) => {
+                    return [new Date(entry["start"]).getTime(), entity.attributes.data[index]["price"]];
+                  });
+                color_threshold:
+                  - value: 0
+                    color: '#2ecc71'
+                  - value: 5
+                    color: '#f39c12'
+                  - value: 10
+                    color: '#e74c3c'
+              - entity: sensor.boiler_nrgconstotal
+                name: Power from grid
+                type: column
+                color: '#3498db'
+                unit: ' kWh'
+                yaxis_id: price
+                show:
+                  in_header: true
+                float_precision: 2
+                group_by:
+                  func: diff
+                  duration: 1h
+              - entity: sensor.hp_live_running_cost
+                name: Hourly Cost
+                type: line
+                color: '#9b59b6'
+                unit: ' €'
+                yaxis_id: cost
+                show:
+                  in_header: true
+                float_precision: 3
+                stroke_width: 2
+                group_by:
+                  func: avg
+                  duration: 1h
+            grid_options:
+              columns: full
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Fixed vs Market — Daily Cost (30d)
+              show_states: true
+              colorize_states: true
+            graph_span: 30d
+            yaxis:
+              - id: cost
+                decimals: 2
+                min: 0
+                apex_config:
+                  title:
+                    text: Daily Cost (€)
+              - id: savings
+                opposite: true
+                decimals: 2
+                apex_config:
+                  title:
+                    text: Savings (€)
+            series:
+              - entity: sensor.daily_fixed_tariff_cost
+                name: Fixed Contract
+                type: column
+                color: '#2ecc71'
+                unit: ' €'
+                yaxis_id: cost
+                float_precision: 3
+                group_by:
+                  func: max
+                  duration: 1d
+              - entity: sensor.daily_energy_cost
+                name: Market Price
+                type: column
+                color: '#e74c3c'
+                unit: ' €'
+                yaxis_id: cost
+                float_precision: 3
+                group_by:
+                  func: max
+                  duration: 1d
+              - entity: sensor.daily_savings_vs_market
+                name: Daily Win/Loss
+                type: line
+                color: '#3498db'
+                unit: ' €'
+                yaxis_id: savings
+                float_precision: 3
+                stroke_width: 2
+                show:
+                  in_header: true
+                group_by:
+                  func: last
+                  duration: 1d
+            grid_options:
+              columns: full
+          - type: custom:apexcharts-card
+            graph_span: 3d
+            header:
+              show: true
+              title: 'Engineering Audit: Temp vs. Energy vs. Price'
+              show_states: true
+              colorize_states: true
+            yaxis:
+              - id: energy
+                min: 0
+                decimals: 1
+                apex_config:
+                  title:
+                    text: Energy (kWh)
+              - id: temp
+                opposite: true
+                decimals: 1
+                apex_config:
+                  title:
+                    text: Temp (°C) / Price (c)
+            series:
+              - entity: sensor.boiler_outdoortemp
+                name: Outside Temp
+                type: line
+                yaxis_id: temp
+                group_by:
+                  func: avg
+                  duration: 1h
+                color: '#4caf50'
+                stroke_width: 3
+              - entity: sensor.boiler_nrgconscompheating
+                name: Heating
+                type: column
+                yaxis_id: energy
+                group_by:
+                  func: diff
+                  duration: 1h
+                color: '#ff9800'
+              - entity: sensor.boiler_dhw_nrgconscomp
+                name: Hot Water
+                type: column
+                yaxis_id: energy
+                group_by:
+                  func: diff
+                  duration: 1h
+                color: '#03a9f4'
+              - entity: sensor.boiler_auxelecheatnrgconsheating
+                name: Aux Penalty
+                type: column
+                yaxis_id: energy
+                group_by:
+                  func: diff
+                  duration: 1h
+                color: '#ff0000'
+                stroke_width: 2
+              - entity: sensor.nord_pool_current_price_with_taxes
+                name: Price (s/kWh)
+                type: area
+                yaxis_id: temp
+                opacity: 0.1
+                color: '#808080'
+                stroke_width: 1
+                group_by:
+                  func: avg
+                  duration: 1h
+            grid_options:
+              columns: full
+      - type: grid
+        column_span: 4
+        cards:
+          - type: heading
+            heading: Today
+            heading_style: title
+            icon: mdi:calendar-today
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:heat-wave
+                heading: 'Heating Energy: Today'
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: statistic
+                    entity: sensor.boiler_nrgconstotal
+                    name: Total Electrity Consumed (All)
+                    icon: mdi:sigma
+                    period:
+                      calendar:
+                        period: day
+                    stat_type: change
+                  - type: entity
+                    entity: sensor.daily_heat_produced_total
+                    name: Total Heat Produced (All)
+                    icon: mdi:sun-clock
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:heat-wave
+                heading: 'Heating Energy: Today'
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: statistic
+                    entity: sensor.boiler_nrgconscompheating
+                    name: Compressor
+                    icon: mdi:heat-pump
+                    period:
+                      calendar:
+                        period: day
+                    stat_type: change
+                  - type: statistic
+                    entity: sensor.boiler_auxelecheatnrgconsheating
+                    name: Aux Heater
+                    icon: mdi:lightning-bolt
+                    period:
+                      calendar:
+                        period: day
+                    stat_type: change
+                  - type: entity
+                    entity: sensor.daily_heating_produced
+                    name: Supplied
+                    icon: mdi:sun-thermometer
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:water
+                heading: 'Hot Water Energy: Today'
+              - type: horizontal-stack
+                cards:
+                  - type: statistic
+                    entity: sensor.boiler_dhw_nrgconscomp
+                    name: Compressor
+                    icon: mdi:heat-pump
+                    period:
+                      calendar:
+                        period: day
+                    stat_type: change
+                  - type: statistic
+                    entity: sensor.boiler_dhw_auxelecheatnrgcons
+                    name: Aux Heater
+                    icon: mdi:lightning-bolt
+                    period:
+                      calendar:
+                        period: day
+                    stat_type: change
+                  - type: entity
+                    entity: sensor.daily_dhw_produced
+                    name: Supplied
+                    icon: mdi:thermometer-water
+          - chart_type: line
+            period: hour
+            type: statistics-graph
+            entities:
+              - sensor.boiler_nrgconscomptotal
+              - sensor.boiler_dhw_nrgconscomp
+              - sensor.boiler_dhw_auxelecheatnrgcons
+              - sensor.boiler_nrgconscompheating
+            days_to_show: 1
+            grid_options:
+              columns: full
+              rows: 8
+            stat_types:
+              - change
+            hide_legend: false
+          - type: history-graph
+            entities:
+              - entity: sensor.boiler_curflowtemp
+                name: Water Flow (Heat)
+              - entity: sensor.boiler_outdoortemp
+                name: Outdoor Temp
+              - entity: sensor.thermostat_hc1_seltemp
+                name: Target Room
+            hours_to_show: 48
+            title: Heating Curve Performance
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: Hourly Thermal Correlation
+            days_to_show: 3
+            period: hour
+            chart_type: bar
+            stat_types:
+              - change
+              - mean
+            entities:
+              - entity: sensor.boiler_outdoortemp
+                name: Outside Temp (°C)
+                stat_type: mean
+                secondary_y_axis: true
+              - entity: sensor.boiler_nrgconscompheating
+                name: Compressor (Heating)
+                stat_type: change
+              - entity: sensor.boiler_dhw_nrgconscomp
+                name: Compressor (DHW)
+                stat_type: change
+              - entity: sensor.boiler_auxelecheatnrgconsheating
+                name: Aux Heater (Heating Penalty)
+                stat_type: change
+            grid_options:
+              columns: full
+      - type: grid
+        cards:
+          - type: vertical-stack
+            cards:
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.daily_defrost_cycles
+                    name: Today's Defrosts
+                    icon: mdi:counter
+                  - type: entity
+                    entity: sensor.hp_defrosting
+                    name: Status
+              - type: history-graph
+                title: Defrost Impact on Flow
+                entities:
+                  - entity: sensor.hp_defrosting
+                  - entity: sensor.boiler_curflowtemp
+                  - entity: sensor.boiler_rettemp
+                hours_to_show: 6
+          - type: vertical-stack
+            cards:
+              - type: heading
+                heading: Hydraulic Health
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: gauge
+                    entity: sensor.heating_loop_delta_t
+                    name: Delta T
+                    min: 0
+                    max: 15
+                    needle: true
+                    severity:
+                      green: 0
+                      yellow: 7
+                      red: 10
+                  - type: gauge
+                    entity: sensor.boiler_hpcircspd
+                    name: Pump Speed
+                    unit: '%'
+                    min: 0
+                    max: 100
+              - type: history-graph
+                entities:
+                  - entity: sensor.heating_loop_delta_t
+                  - entity: sensor.boiler_hpcircspd
+                hours_to_show: 12
+          - type: heading
+            heading: New section
+      - type: grid
+        column_span: 4
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Lifetime Statistics
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:heat-wave
+                heading: Energy Balance - Heating
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.boiler_nrgconscompheating
+                    name: Compressor (Heating)
+                    icon: mdi:heat-pump
+                  - type: entity
+                    entity: sensor.boiler_auxelecheatnrgconsheating
+                    name: Aux Heater (Heating)
+                    icon: mdi:lightning-bolt
+                  - type: entity
+                    entity: sensor.boiler_nrgsuppheating
+                    name: Total Heat Supplied
+                    icon: mdi:sun-thermometer
+            grid_options:
+              columns: 24
+              rows: auto
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:water
+                heading: Energy Balance - Hot Water
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.boiler_dhw_nrgconscomp
+                    name: Compressor (DHW)
+                    icon: mdi:heat-pump
+                  - type: entity
+                    entity: sensor.boiler_dhw_auxelecheatnrgcons
+                    name: Aux Heater (DHW)
+                    icon: mdi:lightning-bolt
+                  - type: entity
+                    entity: sensor.boiler_dhw_nrgsupp
+                    name: DHW Supplied
+                    icon: mdi:thermometer-water
+            grid_options:
+              columns: 24
+              rows: auto
+          - type: vertical-stack
+            cards:
+              - type: heading
+                icon: mdi:sigma
+                heading: Energy Balance - Total System
+                heading_style: title
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.boiler_nrgconstotal
+                    name: Total Elec Consumed
+                    icon: mdi:lightning-bolt
+                  - type: entity
+                    entity: sensor.boiler_nrgsupptotal
+                    name: Total Heat Produced
+                    icon: mdi:heat-pump-outline
+                  - type: entity
+                    entity: sensor.boiler_jaz
+                    name: Lifetime SCOP
+                    icon: mdi:calculator
+            grid_options:
+              columns: 24
+              rows: auto
+      - type: grid
+        cards:
+          - type: entities
+            entities:
+              - entity: sensor.boiler_nrgsupptotal
+                name: Total Heat Delivered
+              - entity: sensor.boiler_nrgconstotal
+                name: Total Elec Consumed
+              - entity: sensor.boiler_totalcompstarts
+                name: Comp Starts
+              - entity: sensor.compressor_total_work_time
+                name: Actual Pumping Time
+              - entity: sensor.heat_pump_age
+                name: Total System Age
+          - type: entities
+            entities:
+              - entity: sensor.boiler_hptr6
+                name: Hot Gas (Compressor Out)
+              - entity: sensor.boiler_hptc3
+                name: Condenser Temp
+              - entity: sensor.boiler_hptr4
+                name: Evaporator Inlet
+              - entity: sensor.boiler_hptr1
+                name: Compressor Inlet (Suction)
+            grid_options:
+              columns: 12
+              rows: auto
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🛠️ Service & Diagnostics
+            heading_style: title
+          - type: vertical-stack
+            cards:
+              - type: heading
+                heading_style: title
+                heading: Latest Error
+              - type: entities
+                entities:
+                  - entity: sensor.boiler_lastcode
+                    name: Raw Fault Code
+                  - entity: sensor.boiler_servicecode
+                    name: Active Service Code
+                  - entity: sensor.boiler_servicecodenumber
+                    name: Service ID
+              - type: markdown
+                content: >
+                  {% set raw = states('sensor.boiler_lastcode') %}
+
+                  {# Define the lookup table from your Bosch 7001i manual #} {%
+                  set mapper = {
+                    '5514': 'TR3 Condensate Sensor: Short circuit (Heating mode)',
+                    '5515': 'TR3 Condensate Sensor: Open circuit',
+                    '5271': 'High Flow Temp: Flow too low or air in system',
+                    '1001': 'EMS Bus: Communication interruption',
+                    '5201': 'T1 Outdoor Sensor: Open circuit',
+                    '6220': 'Maintenance: 3/5 year warranty service reminder',
+                    '5231': 'TR1 Flow Sensor: Faulty flow temp sensor',
+                    '4403': 'Defrost Error: Cycle timed out (Check flow/Delta T)'
+                  } %}
+
+                  {# Senior fix: Extract code without the 'default' argument #}
+                  {% set matches = raw | regex_findall('\((\d+)\)') %}
+
+                  {% if matches | count > 0 %}
+                    {% set code_num = matches[0] %}
+                    {% set description = mapper.get(code_num, 'Unknown Bosch Code (' ~ code_num ~ ')') %}
+                  {% else %}
+                    {% set description = 'No error code detected in string.' %}
+                  {% endif %}
+
+                  ### 🛠️ Diagnosis **Parsed Error:** {{ description }}
+
+                  **Timestamped Event:** `{{ raw }}`
+
+                  --- *Note: **A-level** codes (like your 5514) are often
+                  auto-resetting warnings. **H-level** codes are critical
+                  blocks. See
+                  https://www.lvisawo.fi/data/dokumentit/bosch/vikakoodit/BOSCH-Vikakoodit-maalampopumppu-7001i-7800i_LW_LWM.pdf
+                  for more information*
+          - type: logbook
+            title: Clean Error History
+            hours_to_show: 168
+            entities:
+              - sensor.hp_filtered_error
+            grid_options:
+              columns: 12
+              rows: 7

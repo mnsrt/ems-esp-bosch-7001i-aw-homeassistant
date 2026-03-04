@@ -1,0 +1,207 @@
+- id: '1772265861370'
+  alias: 'WP MQTT: Set force_update on boiler_nrgtotal if missing'
+  description: 'This automation adds ''force_update: true'' to the discovery message
+    of ''boiler_nrgtotal'' when the flag is missing or false, preserving all other
+    content.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_nrgtotal/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: '{% set payload = trigger.payload | from_json %} {{ not payload.get(''force_update'',
+      False) }}
+
+      '
+    enabled: true
+    alias: Only if force_update flag is false or missing entirely
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_nrgtotal/config
+      payload: '{% set payload = trigger.payload | from_json %}{{ dict(payload, force_update=true)
+        | to_json }}
+
+        '
+      retain: false
+    action: mqtt.publish
+    enabled: true
+  mode: single
+
+- id: 'mqtt_fix_state_class_boiler_nrgsupptotal'
+  alias: 'WP MQTT: Fix state_class on boiler_nrgsupptotal'
+  description: 'Injects state_class: total_increasing + device_class: energy into
+    the discovery payload so HA records sum statistics (required for "today" change cards).'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_nrgsupptotal/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_nrgsupptotal/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_state_class_boiler_nrgsuppheating'
+  alias: 'WP MQTT: Fix state_class on boiler_nrgsuppheating'
+  description: 'Injects state_class: total_increasing + device_class: energy into
+    the discovery payload so HA records sum statistics.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_nrgsuppheating/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_nrgsuppheating/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_state_class_boiler_dhw_nrgsupp'
+  alias: 'WP MQTT: Fix state_class on boiler_dhw_nrgsupp'
+  description: 'Injects state_class: total_increasing + device_class: energy into
+    the discovery payload so HA records sum statistics.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_dhw_nrgsupp/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_dhw_nrgsupp/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_boiler_nrgconstotal'
+  alias: 'WP MQTT: Fix state_class + force_update on boiler_nrgconstotal'
+  description: 'Injects force_update, state_class: total_increasing and device_class: energy
+    so apexcharts func:diff shows correct kWh/h and HA records proper statistics.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_nrgconstotal/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ not p.get('force_update', false) or p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_nrgconstotal/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, force_update=true, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_force_update_boiler_nrgconscompheating'
+  alias: 'WP MQTT: Set force_update on boiler_nrgconscompheating'
+  description: 'Injects force_update, state_class: total_increasing and device_class: energy
+    so apexcharts func:diff works and HA records proper statistics.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_nrgconscompheating/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ not p.get('force_update', false) or p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_nrgconscompheating/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, force_update=true, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_force_update_boiler_dhw_nrgconscomp'
+  alias: 'WP MQTT: Set force_update on boiler_dhw_nrgconscomp'
+  description: 'Injects force_update, state_class: total_increasing and device_class: energy
+    so DHW energy is recorded as statistics and apexcharts func:diff shows correct kWh columns.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_dhw_nrgconscomp/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ not p.get('force_update', false) or p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_dhw_nrgconscomp/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, force_update=true, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'mqtt_fix_force_update_boiler_auxelecheatnrgconsheating'
+  alias: 'WP MQTT: Set force_update on boiler_auxelecheatnrgconsheating'
+  description: 'Injects force_update, state_class: total_increasing and device_class: energy
+    so aux heater energy is recorded as statistics and apexcharts func:diff shows correct kWh.'
+  triggers:
+  - topic: homeassistant/sensor/ems-esp/boiler_auxelecheatnrgconsheating/config
+    trigger: mqtt
+  conditions:
+  - condition: template
+    value_template: >
+      {% set p = trigger.payload | from_json %}
+      {{ not p.get('force_update', false) or p.get('state_class', '') != 'total_increasing' }}
+  actions:
+  - data:
+      topic: homeassistant/sensor/ems-esp/boiler_auxelecheatnrgconsheating/config
+      payload: >
+        {% set p = trigger.payload | from_json %}
+        {{ dict(p, force_update=true, state_class='total_increasing', device_class='energy') | to_json }}
+      retain: true
+    action: mqtt.publish
+  mode: single
+
+- id: 'hp_high_delta_t_alert'
+  alias: "⚠️ Heat Pump High Delta T (Low Flow Proxy)"
+  description: "Alerts if Delta T > 10°C while compressor is active"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.heating_loop_delta_t
+      above: 10
+      for:
+        minutes: 5
+  condition:
+    - condition: numeric_state
+      entity_id: sensor.boiler_hpcurrpower
+      above: 200 # Compressor is definitely running
+  action:
+    - service: notify.notify
+      data:
+        title: "⚠️ Heat Pump Flow Warning"
+        message: >
+          Delta T is currently {{ states('sensor.heating_loop_delta_t') }}°C. 
+          Flow may be restricted. Check the magnetic filter and system pressure.
+    - service: persistent_notification.create
+      data:
+        title: "Efficiency Alert"
+        message: "High Delta T detected. The Bosch 13kW efficiency (COP) drops as Delta T rises above 7°C."
+  mode: single

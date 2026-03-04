@@ -1,0 +1,451 @@
+homeassistant:
+    customize:
+        sensor.boiler_nrgsupptotal:
+          state_class: total_increasing
+          device_class: energy
+          unit_of_measurement: "kWh"
+        sensor.boiler_nrgsuppheating:
+          state_class: total_increasing
+          device_class: energy
+          unit_of_measurement: "kWh"
+        sensor.boiler_dhw_nrgsupp:
+          state_class: total_increasing
+          device_class: energy
+          unit_of_measurement: "kWh"
+        sensor.daily_dhw_produced:
+          unit_of_measurement: "kWh"
+          device_class: energy
+        sensor.daily_heating_produced:
+          unit_of_measurement: "kWh"
+          device_class: energy
+        sensor.daily_heat_produced_total:
+          unit_of_measurement: "kWh"
+          device_class: energy
+          
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+  
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# For cloudflared
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.30.33.0/24
+    
+
+  
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: "/15" # Updates every 15 minutes
+      - trigger: homeassistant
+        event: start
+    actions:
+      - action: weather.get_forecasts
+        continue_on_error: true
+        data:
+          type: hourly
+        target:
+          entity_id: weather.forecast_kodu
+        response_variable: hourly_forecast
+      # Find your config_entry ID: Developer Tools > Actions > nordpool.get_prices_for_date > switch to YAML mode
+      - action: nordpool.get_prices_for_date
+        continue_on_error: true
+        data:
+          config_entry: 01KJN0PJN044GW2J8BSAHZT21P
+          date: "{{ now().date() }}"
+          areas: EE
+          currency: EUR
+        response_variable: today_price
+      - action: nordpool.get_prices_for_date
+        continue_on_error: true
+        data:
+          config_entry: 01KJN0PJN044GW2J8BSAHZT21P
+          date: "{{ now().date() + timedelta(days=1) }}"
+          areas: EE
+          currency: EUR
+        response_variable: tomorrow_price
+    sensor:
+      - name: "Predicted Heating Cost Next 24h"
+        unit_of_measurement: "€"
+        icon: mdi:forecast-chart
+        state: >
+          {% set base_temp = 20.0 %}
+          {% set current_power = states('sensor.boiler_hpcurrpower') | float(0) %}
+          {% set current_outdoor = states('sensor.boiler_outdoortemp') | float(99) %}
+          {% set delta_now = base_temp - current_outdoor %}
+          {% if current_power > 300 and delta_now > 3 %}
+            {% set watt_per_degree = current_power / delta_now %}
+          {% else %}
+            {% set watt_per_degree = 180 %}
+          {% endif %}
+
+          {# Extract forecast list — try both key formats HA may return #}
+          {% set fc_key = 'weather.forecast_kodu' %}
+          {% if hourly_forecast is mapping and fc_key in hourly_forecast %}
+            {% set forecasts = hourly_forecast[fc_key]['forecast'] %}
+          {% else %}
+            {% set forecasts = [] %}
+          {% endif %}
+
+          {% set ns = namespace(total=0.0) %}
+          {% if forecasts | count >= 6 %}
+            {# Real forecast available — sum hour by hour #}
+            {% for h in forecasts[:24] %}
+              {% set dt = as_datetime(h.datetime) %}
+              {% set dow = dt.weekday() %}
+              {% set hr = dt.hour %}
+              {% if dow < 5 and hr >= 7 and hr < 22 %}
+                {% set price = 0.1006 %}
+              {% else %}
+                {% set price = 0.0805 %}
+              {% endif %}
+              {% set delta = base_temp - (h.temperature | float) %}
+              {% if delta > 0 %}
+                {% set ns.total = ns.total + (watt_per_degree * delta / 1000 * price) %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            {# Fallback: use current outdoor temp for all 24h with blended avg tariff #}
+            {# 15h day-rate + 9h night-rate on a typical weekday #}
+            {% set avg_price = (15 * 0.1006 + 9 * 0.0805) / 24 %}
+            {% set delta = base_temp - current_outdoor %}
+            {% if delta > 0 %}
+              {% set ns.total = watt_per_degree * delta * 24 / 1000 * avg_price %}
+            {% endif %}
+          {% endif %}
+          {{ [ns.total, 0.01] | max | round(3) }}
+
+      - name: "Electricity Prices"
+        unique_id: electricity_prices_ee
+        unit_of_measurement: "snt/kWh"
+        icon: mdi:cash
+        state: >
+          {% if today_price is mapping and 'EE' in today_price %}
+            {% set ns = namespace(prices=[]) %}
+            {% for entry in today_price['EE'] %}
+              {% set ns.prices = ns.prices + [(entry.price / 10 * 1.24) | round(3)] %}
+            {% endfor %}
+            {% if tomorrow_price is mapping and 'EE' in tomorrow_price %}
+              {% for entry in tomorrow_price['EE'] %}
+                {% set ns.prices = ns.prices + [(entry.price / 10 * 1.24) | round(3)] %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.prices | min }}
+          {% else %}
+            unavailable
+          {% endif %}
+        attributes:
+          tomorrow_valid: >
+            {{ tomorrow_price is mapping and 'EE' in tomorrow_price and tomorrow_price['EE'] | list | count > 0 }}
+          data: >
+            {% if today_price is mapping and 'EE' in today_price %}
+              {% set ns = namespace(result=[]) %}
+              {% for entry in today_price['EE'] %}
+                {% set ns.result = ns.result + [{'start': entry.start, 'end': entry.end, 'price': (entry.price / 10 * 1.24) | round(3)}] %}
+              {% endfor %}
+              {% if tomorrow_price is mapping and 'EE' in tomorrow_price %}
+                {% for entry in tomorrow_price['EE'] %}
+                  {% set ns.result = ns.result + [{'start': entry.start, 'end': entry.end, 'price': (entry.price / 10 * 1.24) | round(3)}] %}
+                {% endfor %}
+              {% endif %}
+              {{ ns.result }}
+            {% else %}
+              []
+            {% endif %}
+          tax: 1.24
+          additional_cost: 0
+          region: EE
+
+  - sensor:
+      - name: "Nord Pool current price with taxes"
+        unique_id: nordpool_current_price_with_taxes
+        unit_of_measurement: "snt/kWh"
+        device_class: monetary
+        state_class: measurement
+        state: >
+          {{ (states('sensor.nord_pool_ee_current_price') | float * 100 * 1.24) | round(3) }}
+
+      - name: "Monthly Energy Trend"
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {% set current = states('sensor.monthly_energy_consumption') | float(0) %}
+          {% set last = states('sensor.monthly_energy_consumption_last_period') | float(0) %}
+          {% if last > 0 %}
+            {# Classic (New-Old)/Old formula #}
+            {{ (((current - last) / last) * 100) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        icon: >
+          {# Re-use the math to set icon color/direction #}
+          {% set current = states('sensor.monthly_energy_consumption') | float(0) %}
+          {% set last = states('sensor.monthly_energy_consumption_last_period') | float(0) %}
+          {% if last > 0 %}
+            {% set trend = (((current - last) / last) * 100) %}
+            {% if trend > 5 %} mdi:trending-up 
+            {% elif trend < -5 %} mdi:trending-down 
+            {% else %} mdi:trending-neutral 
+            {% endif %}
+          {% else %}
+            mdi:trending-neutral
+          {% endif %}
+        attributes:
+          last_month_value: "{{ states('sensor.monthly_energy_consumption_last_period') }}"
+
+      - name: "Total Daily COP"
+        unit_of_measurement: "COP"
+        state_class: measurement
+        state: >
+          {% set heat = states('sensor.daily_heat_produced_total') | float(0) %}
+          {% set energy = states('sensor.daily_compressor_consumed') | float(0) %}
+          {# Prevent division by zero and wait for at least 0.1kWh of data #}
+          {% if energy > 0.1 %}
+            {{ (heat / energy) | round(2) }}
+          {% else %}
+            0.0
+          {% endif %}
+
+        # Calculates the instant cost of running the HP right now
+      - name: "HP Live Running Cost"
+        unit_of_measurement: "€"
+        state: >
+            {% set price = states('sensor.nord_pool_ee_current_price') | float(0) %}
+            {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
+            {{ (power / 1000 * price) | round(4) }}
+
+        # Fixed two-tariff contract: day 10.06 snt/kWh, night 8.05 snt/kWh (incl. 24% VAT)
+        # Day: Mon–Fri 07:00–22:00  |  Night: all other times
+      - name: "Fixed Tariff Current Price"
+        unique_id: fixed_tariff_current_price
+        unit_of_measurement: "snt/kWh"
+        state_class: measurement
+        icon: mdi:tag-check
+        state: >
+          {% set h = now().hour %}
+          {% set dow = now().weekday() %}
+          {% if dow < 5 and h >= 7 and h < 22 %}
+            10.06
+          {% else %}
+            8.05
+          {% endif %}
+
+      - name: "HP Fixed Running Cost"
+        unique_id: hp_fixed_running_cost
+        unit_of_measurement: "€"
+        state: >
+          {% set price_snt = states('sensor.fixed_tariff_current_price') | float(0) %}
+          {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
+          {{ (power / 1000 * price_snt / 100) | round(4) }}
+
+      - name: "Daily Savings vs Market"
+        unique_id: daily_savings_vs_market
+        unit_of_measurement: "€"
+        state: >
+          {% set market = states('sensor.daily_energy_cost') | float(0) %}
+          {% set fixed = states('sensor.daily_fixed_tariff_cost') | float(0) %}
+          {{ (market - fixed) | round(4) }}
+
+      - name: "Monthly Savings vs Market"
+        unique_id: monthly_savings_vs_market
+        unit_of_measurement: "€"
+        state: >
+          {% set market = states('sensor.monthly_energy_cost_market') | float(0) %}
+          {% set fixed = states('sensor.monthly_fixed_tariff_cost') | float(0) %}
+          {{ (market - fixed) | round(4) }}
+
+      - name: "Fixed Today Display"
+        unique_id: fixed_today_display
+        unit_of_measurement: "€"
+        state: "{{ states('sensor.daily_fixed_tariff_cost') | float(0) | round(4) }}"
+        attributes:
+          percentage: >
+            {% set fixed = states('sensor.daily_fixed_tariff_cost') | float(0) %}
+            {% set market = states('sensor.daily_energy_cost') | float(0) %}
+            {% if market > 0 %}
+              {{ (fixed / market * 100) | round(0) | int }}% of mkt
+            {% else %}
+              N/A
+            {% endif %}
+
+      - name: "Market Today Display"
+        unique_id: market_today_display
+        unit_of_measurement: "€"
+        state: "{{ states('sensor.daily_energy_cost') | float(0) | round(4) }}"
+        attributes:
+          percentage: >
+            {% set fixed = states('sensor.daily_fixed_tariff_cost') | float(0) %}
+            {% set market = states('sensor.daily_energy_cost') | float(0) %}
+            {% if fixed > 0 %}
+              {{ (market / fixed * 100) | round(0) | int }}% of fixed
+            {% else %}
+              N/A
+            {% endif %}
+        
+      - name: "Heating Loop Delta T"
+        unit_of_measurement: "°C"
+        state_class: measurement
+        state: >
+          {% set flow = states('sensor.boiler_curflowtemp') | float(0) %}
+          {% set return_temp = states('sensor.boiler_rettemp') | float(0) %}
+          {% set delta = flow - return_temp %}
+          
+          {# Only show a positive Delta T when the pump is actually heating #}
+          {% if delta > 0 %}
+            {{ delta | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        icon: mdi:thermometer-chevron-down
+      - name: "HP Defrosting"
+        state: >
+          {% if is_state('sensor.boiler_hpactivity', 'defrosting') %}
+            on
+          {% else %}
+            off
+          {% endif %}
+          
+      - name: "Defrost Event Counter Source"
+        state: >
+          {% if is_state('sensor.hp_defrosting', 'on') %}
+            1
+          {% else %}
+            0
+          {% endif %}
+          
+      - name: "Heat Pump Age"
+        state: >
+          {% set uptime = states('sensor.boiler_ubauptime') | int(0) %}
+          {% set years = (uptime // 525600) %}
+          {% set months = ((uptime % 525600) // 43200) %}
+          {% set days = ((uptime % 43200) // 1440) %}
+          {% set hours = ((uptime % 1440) // 60) %}
+
+          {% set parts = [] %}
+          {% if years > 0 %}{% set parts = parts + [years ~ 'y'] %}{% endif %}
+          {% if months > 0 %}{% set parts = parts + [months ~ 'm'] %}{% endif %}
+          {% if days > 0 %}{% set parts = parts + [days ~ 'd'] %}{% endif %}
+          {% if years == 0 and hours > 0 %}{% set parts = parts + [hours ~ 'h'] %}{% endif %}
+          {{ parts | join(' ') if parts | length > 0 else '0h' }}
+        icon: mdi:clock-check-outline
+        
+      - name: "Compressor Total Work Time"
+        state: >
+          {% set uptime = states('sensor.boiler_uptimecompheating') | int(0) %}
+          {% set years = (uptime // 525600) %}
+          {% set months = ((uptime % 525600) // 43200) %}
+          {% set days = ((uptime % 43200) // 1440) %}
+          {% set hours = ((uptime % 1440) // 60) %}
+
+          {% set parts = [] %}
+          {% if years > 0 %}{% set parts = parts + [years ~ 'y'] %}{% endif %}
+          {% if months > 0 %}{% set parts = parts + [months ~ 'm'] %}{% endif %}
+          {% if days > 0 %}{% set parts = parts + [days ~ 'd'] %}{% endif %}
+          {% if years == 0 %}{% set parts = parts + [hours ~ 'h'] %}{% endif %}
+          
+          {{ parts | join(' ') if parts | length > 0 else '0h' }}
+        icon: mdi:engine-outline
+        
+      - name: "HP Last Error Code"
+        state: >
+          {{ states('sensor.boiler_lastcode') }}
+        icon: mdi:alert-octagon
+        
+      - name: "HP Filtered Error"
+        state: >
+          {{ states('sensor.boiler_lastcode') }}
+        # This ensures the log only grows when the actual text changes
+        icon: mdi:alert-filter
+        
+      - name: "HP Error Description"
+        state: >
+          {% set code = states('sensor.boiler_lastcode') %}
+          {% if '5514' in code %}
+            TR3 Condensate Sensor Short Circuit (Heating)
+          {% elif '5515' in code %}
+            TR3 Condensate Sensor Open Circuit
+          {% elif '5271' in code %}
+            High Flow Temperature Alarm
+          {% elif '5276' in code %}
+            Low Brine Pressure (Check circuit)
+          {% elif '5201' in code %}
+            Outdoor Sensor T1 Open Circuit
+          {% else %}
+            No Active Fault or Unknown Code
+          {% endif %}
+        icon: mdi:frequently-asked-questions
+        
+
+utility_meter:
+  daily_aux_consumed:
+    source: sensor.boiler_auxelecheatnrgconstotal
+    name: "Daily Aux Consumed"
+    cycle: daily
+    always_available: true
+  daily_defrost_cycles:
+    source: sensor.defrost_event_counter_source
+    name: "Daily Defrost Cycles"
+    cycle: daily
+  daily_energy_cost:
+    source: sensor.hp_live_running_cost
+    name: "Daily Energy Cost"
+    cycle: daily
+  daily_compressor_consumed:
+    source: sensor.boiler_nrgconscomptotal
+    name: "Daily Compressor Consumed"
+    cycle: daily
+    always_available: true
+# Total System
+  daily_energy_consumed_total:
+    source: sensor.boiler_nrgconstotal
+    cycle: daily
+  daily_heat_produced_total:
+    source: sensor.boiler_nrgsupptotal
+    cycle: daily
+
+  # House Heating
+  daily_heating_consumed_comp:
+    source: sensor.boiler_nrgconscompheating
+    cycle: daily
+  daily_heating_consumed_aux:
+    source: sensor.boiler_auxelecheatnrgconsheating
+    cycle: daily
+  daily_heating_produced:
+    source: sensor.boiler_nrgsuppheating
+    cycle: daily
+
+  # Hot Water (DHW)
+  daily_dhw_consumed_comp:
+    source: sensor.boiler_dhw_nrgconscomp
+    cycle: daily
+  daily_dhw_consumed_aux:
+    source: sensor.boiler_dhw_auxelecheatnrgcons
+    cycle: daily
+  daily_dhw_produced:
+    source: sensor.boiler_dhw_nrgsupp
+    cycle: daily
+
+  # Fixed two-tariff contract meters
+  daily_fixed_cost:
+    source: sensor.hp_fixed_running_cost
+    name: "Daily Fixed Tariff Cost"
+    cycle: daily
+  monthly_fixed_cost:
+    source: sensor.hp_fixed_running_cost
+    name: "Monthly Fixed Tariff Cost"
+    cycle: monthly
+  monthly_energy_cost:
+    source: sensor.hp_live_running_cost
+    name: "Monthly Energy Cost (Market)"
+    cycle: monthly
+          
+
