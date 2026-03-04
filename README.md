@@ -38,6 +38,8 @@ BBQKees Interface Board v3.1
 
 > The service jack eliminates the need for a separate 12 V or 24 V power brick. The step-down module handles the voltage regulation so the ESP32 receives a clean 5 V.
 
+See [BBQKees Interface Board v3.1 - Connecting to the Controller](https://bbqkees-electronics.nl/wiki/interface-board/interface-board-v3-1.html#connecting-to-the-controller) for detailed wiring instructions and photos for data between MCU and interface board.
+
 ---
 
 ## Firmware
