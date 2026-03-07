@@ -168,10 +168,6 @@ views:
                     entity: sensor.daily_energy_cost
                     name: Market Cost
                     icon: mdi:cash-clock
-                  - type: entity
-                    entity: sensor.daily_savings_vs_market
-                    name: Savings
-                    icon: mdi:piggy-bank
               - type: heading
                 heading: This Month
                 heading_style: subtitle
@@ -185,9 +181,18 @@ views:
                     entity: sensor.monthly_energy_cost_market
                     name: Market Cost
                     icon: mdi:cash-clock
+              - type: heading
+                heading: Savings
+                heading_style: subtitle
+              - type: horizontal-stack
+                cards:
+                  - type: entity
+                    entity: sensor.daily_savings_vs_market
+                    name: Day
+                    icon: mdi:piggy-bank
                   - type: entity
                     entity: sensor.monthly_savings_vs_market
-                    name: Savings
+                    name: Month
                     icon: mdi:piggy-bank-outline
               - graph: line
                 type: sensor
@@ -624,8 +629,8 @@ views:
                 title: Defrost Impact on Flow
                 entities:
                   - entity: sensor.hp_defrosting
-                  - entity: sensor.boiler_curflowtemp
-                  - entity: sensor.boiler_rettemp
+                  - entity: sensor.boiler_hptc1
+                  - entity: sensor.boiler_hptc0
                 hours_to_show: 6
           - type: vertical-stack
             cards:
@@ -756,6 +761,8 @@ views:
                 name: Evaporator Inlet
               - entity: sensor.boiler_hptr1
                 name: Compressor Inlet (Suction)
+              - entity: sensor.boiler_hptc1
+              - entity: sensor.boiler_hptc0
             grid_options:
               columns: 12
               rows: auto
