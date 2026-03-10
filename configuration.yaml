@@ -308,7 +308,7 @@ template:
         icon: mdi:thermometer-chevron-down
       - name: "HP Defrosting"
         state: >
-          {% if is_state('sensor.boiler_hpactivity', 'defrosting') %}
+          {% if is_state('sensor.boiler_hpactivity', 'defrost') %}
             on
           {% else %}
             off
