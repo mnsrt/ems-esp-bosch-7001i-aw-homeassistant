@@ -174,11 +174,11 @@ views:
               - type: horizontal-stack
                 cards:
                   - type: entity
-                    entity: sensor.monthly_fixed_tariff_cost
+                    entity: sensor.monthly_fixed_tariff_cost_corrected
                     name: Fixed Cost
                     icon: mdi:tag-check
                   - type: entity
-                    entity: sensor.monthly_energy_cost_market
+                    entity: sensor.monthly_energy_cost_market_corrected
                     name: Market Cost
                     icon: mdi:cash-clock
               - type: heading
@@ -342,10 +342,10 @@ views:
                   func: diff
                   duration: 1h
               - entity: sensor.hp_live_running_cost
-                name: Hourly Cost
+                name: Hourly Cost Rate
                 type: line
                 color: '#9b59b6'
-                unit: ' €'
+                unit: ' €/h'
                 yaxis_id: cost
                 show:
                   in_header: true

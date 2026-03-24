@@ -217,11 +217,11 @@ template:
 
         # Calculates the instant cost of running the HP right now
       - name: "HP Live Running Cost"
-        unit_of_measurement: "€"
+        unit_of_measurement: "€/h"
         state: >
             {% set price = states('sensor.nord_pool_ee_current_price') | float(0) %}
             {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
-            {{ (power / 1000 * price) | round(4) }}
+            {{ (power / 1000 * price * 1.24) | round(4) }}
 
         # Fixed two-tariff contract: day 10.06 snt/kWh, night 8.05 snt/kWh (incl. 24% VAT)
         # Day: Mon–Fri 07:00–22:00  |  Night: all other times
@@ -241,7 +241,7 @@ template:
 
       - name: "HP Fixed Running Cost"
         unique_id: hp_fixed_running_cost
-        unit_of_measurement: "€"
+        unit_of_measurement: "€/h"
         state: >
           {% set price_snt = states('sensor.fixed_tariff_current_price') | float(0) %}
           {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
@@ -259,8 +259,8 @@ template:
         unique_id: monthly_savings_vs_market
         unit_of_measurement: "€"
         state: >
-          {% set market = states('sensor.monthly_energy_cost_market') | float(0) %}
-          {% set fixed = states('sensor.monthly_fixed_tariff_cost') | float(0) %}
+          {% set market = states('sensor.monthly_energy_cost_market_corrected') | float(0) %}
+          {% set fixed = states('sensor.monthly_fixed_tariff_cost_corrected') | float(0) %}
           {{ (market - fixed) | round(4) }}
 
       - name: "Fixed Today Display"
@@ -383,7 +383,69 @@ template:
             No Active Fault or Unknown Code
           {% endif %}
         icon: mdi:frequently-asked-questions
+
+      - name: "Monthly Fixed Tariff Cost Corrected"
+        unique_id: monthly_fixed_tariff_cost_corrected
+        unit_of_measurement: "€"
+        state_class: measurement
+        state: >
+          {% set raw = states('sensor.monthly_fixed_tariff_cost') | float(0) %}
+          {% set adjustment = states('input_number.monthly_fixed_tariff_cost_adjustment') | float(0) %}
+          {{ (raw + adjustment) | round(4) }}
+        attributes:
+          raw_value: "{{ states('sensor.monthly_fixed_tariff_cost') }}"
+          adjustment: "{{ states('input_number.monthly_fixed_tariff_cost_adjustment') }}"
+
+      - name: "Monthly Energy Cost Market Corrected"
+        unique_id: monthly_energy_cost_market_corrected
+        unit_of_measurement: "€"
+        state_class: measurement
+        state: >
+          {% set raw = states('sensor.monthly_energy_cost_market') | float(0) %}
+          {% set adjustment = states('input_number.monthly_energy_cost_market_adjustment') | float(0) %}
+          {{ (raw + adjustment) | round(4) }}
+        attributes:
+          raw_value: "{{ states('sensor.monthly_energy_cost_market') }}"
+          adjustment: "{{ states('input_number.monthly_energy_cost_market_adjustment') }}"
         
+
+sensor:
+  - platform: integration
+    source: sensor.hp_fixed_running_cost
+    name: "HP Fixed Running Cost Total"
+    unique_id: hp_fixed_running_cost_total
+    unit_time: h
+    method: left
+    round: 4
+
+  - platform: integration
+    source: sensor.hp_live_running_cost
+    name: "HP Live Running Cost Total"
+    unique_id: hp_live_running_cost_total
+    unit_time: h
+    method: left
+    round: 4
+
+
+input_number:
+  monthly_fixed_tariff_cost_adjustment:
+    name: "Monthly Fixed Tariff Cost Adjustment"
+    min: -500
+    max: 500
+    step: 0.0001
+    mode: box
+    unit_of_measurement: "€"
+    initial: 0
+
+  monthly_energy_cost_market_adjustment:
+    name: "Monthly Energy Cost Market Adjustment"
+    min: -500
+    max: 500
+    step: 0.0001
+    mode: box
+    unit_of_measurement: "€"
+    initial: 0
+
 
 utility_meter:
   daily_aux_consumed:
@@ -396,7 +458,7 @@ utility_meter:
     name: "Daily Defrost Cycles"
     cycle: daily
   daily_energy_cost:
-    source: sensor.hp_live_running_cost
+    source: sensor.hp_live_running_cost_total
     name: "Daily Energy Cost"
     cycle: daily
   daily_compressor_consumed:
@@ -436,15 +498,15 @@ utility_meter:
 
   # Fixed two-tariff contract meters
   daily_fixed_cost:
-    source: sensor.hp_fixed_running_cost
+    source: sensor.hp_fixed_running_cost_total
     name: "Daily Fixed Tariff Cost"
     cycle: daily
   monthly_fixed_cost:
-    source: sensor.hp_fixed_running_cost
+    source: sensor.hp_fixed_running_cost_total
     name: "Monthly Fixed Tariff Cost"
     cycle: monthly
   monthly_energy_cost:
-    source: sensor.hp_live_running_cost
+    source: sensor.hp_live_running_cost_total
     name: "Monthly Energy Cost (Market)"
     cycle: monthly
           
