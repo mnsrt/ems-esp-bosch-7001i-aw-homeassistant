@@ -205,3 +205,28 @@
         title: "Efficiency Alert"
         message: "High Delta T detected. The Bosch 13kW efficiency (COP) drops as Delta T rises above 7°C."
   mode: single
+
+- id: 'reset_monthly_cost_adjustments'
+  alias: 'Reset monthly cost adjustment helpers on 1st of each month'
+  description: >
+    The input_number adjustments are one-time calibrations (e.g. for a partial
+    first month). They must be zeroed when the monthly utility meters reset,
+    otherwise the corrected sensors carry stale offsets into the new month.
+  triggers:
+  - trigger: time
+    at: '00:00:01'
+  conditions:
+  - condition: template
+    value_template: "{{ now().day == 1 }}"
+  actions:
+  - action: input_number.set_value
+    target:
+      entity_id: input_number.monthly_fixed_tariff_cost_adjustment
+    data:
+      value: 0
+  - action: input_number.set_value
+    target:
+      entity_id: input_number.monthly_energy_cost_market_adjustment
+    data:
+      value: 0
+  mode: single
