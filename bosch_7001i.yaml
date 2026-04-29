@@ -827,3 +827,73 @@ views:
             grid_options:
               columns: 12
               rows: 7
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Ventilation (Vallox)
+            heading_style: title
+            icon: mdi:air-filter
+            grid_options:
+              columns: 12
+              rows: 1
+          - graph: line
+            type: sensor
+            entity: fan.vallox
+            name: Fan Speed
+            detail: 1
+            icon: mdi:fan
+            grid_options:
+              columns: 6
+              rows: auto
+          - graph: line
+            type: sensor
+            entity: sensor.bosch_outside_temperature
+            name: Outdoor Temp
+            detail: 1
+            icon: mdi:thermometer-lines
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: input_boolean.vallox_cold_mode_active
+            name: Cold Mode Active
+            icon: mdi:snowflake-alert
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: input_number.vallox_normal_speed
+            name: Normal Speed Setting
+            icon: mdi:tune
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: sensor.co2
+            name: CO2 (Arvutituba)
+            icon: mdi:molecule-co2
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: sensor.vallox_co2
+            name: CO2 (Vallox built-in)
+            icon: mdi:molecule-co2
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: sensor.magamistuba_co2
+            name: CO2 (Magamistuba)
+            icon: mdi:molecule-co2
+            grid_options:
+              columns: 6
+              rows: auto
+          - type: entity
+            entity: sensor.humidity
+            name: Humidity
+            icon: mdi:water-percent
+            grid_options:
+              columns: 6
+              rows: auto

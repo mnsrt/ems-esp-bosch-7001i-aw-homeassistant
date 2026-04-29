@@ -446,6 +446,21 @@ input_number:
     unit_of_measurement: "€"
     initial: 0
 
+  vallox_normal_speed:
+    name: "Vallox Normal Speed"
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+    unit_of_measurement: "%"
+    initial: 62
+
+
+input_boolean:
+  vallox_cold_mode_active:
+    name: "Vallox Cold Mode Active"
+    icon: mdi:snowflake-alert
+
 
 utility_meter:
   daily_aux_consumed:

@@ -206,6 +206,304 @@
         message: "High Delta T detected. The Bosch 13kW efficiency (COP) drops as Delta T rises above 7°C."
   mode: single
 
+- id: bosch_heat_carrier_delta_t_alert
+  alias: "Bosch — High Delta-T Alert (flow vs return)"
+  description: >
+    Fires when forward_tc1 − return_tc0 exceeds 10 °C for 5 consecutive
+    minutes. Sends persistent notification, mobile push, and logbook entry.
+    1-hour cooldown prevents re-triggering during sustained faults.
+  trigger:
+    - platform: template
+      value_template: >
+        {% set fwd = states('sensor.bosch_heat_carrier_forward_tc1') | float(0) %}
+        {% set ret = states('sensor.bosch_heat_carrier_return_tc0') | float(0) %}
+        {{ (fwd - ret) > 10 }}
+      for: "00:05:00"
+
+  condition:
+    - condition: template
+      value_template: >
+        {{ this.attributes.last_triggered is none or
+           (now() - this.attributes.last_triggered).total_seconds() > 3600 }}
+
+  action:
+    - variables:
+        fwd_temp: >
+          {{ states('sensor.bosch_heat_carrier_forward_tc1') | float(0) | round(1) }}
+        ret_temp: >
+          {{ states('sensor.bosch_heat_carrier_return_tc0') | float(0) | round(1) }}
+        delta: >
+          {{ (states('sensor.bosch_heat_carrier_forward_tc1') | float(0) -
+              states('sensor.bosch_heat_carrier_return_tc0') | float(0)) | round(1) }}
+
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Heat Carrier Delta-T High"
+        message: >
+          Flow: {{ fwd_temp }} °C  |  Return: {{ ret_temp }} °C  |  Δ {{ delta }} °C
+          (sustained > 5 min, threshold: 10 °C)
+
+          This may indicate a hydraulic restriction — check zone valves,
+          circulation pump output, or air in the heating circuit.
+        notification_id: bosch_delta_t_alert
+
+    - service: notify.notify
+      data:
+        title: "⚠️ Heat Carrier Delta-T High"
+        message: >
+          Flow {{ fwd_temp }} °C / Return {{ ret_temp }} °C — Δ {{ delta }} °C.
+          Possible hydraulic restriction (>5 min sustained).
+        data:
+          tag: bosch_delta_t_alert
+          channel: Heating Alerts
+
+    - service: logbook.log
+      data:
+        name: "Bosch Heat Pump"
+        message: >
+          Delta-T alert: flow {{ fwd_temp }} °C, return {{ ret_temp }} °C,
+          delta {{ delta }} °C — exceeded 10 °C for 5+ minutes.
+        entity_id: sensor.bosch_heat_carrier_forward_tc1
+
+  mode: single
+
+- id: bosch_dhw_disinfection_pause_circulation
+  alias: "Bosch DHW — Pause circulation when disinfection starts"
+  description: >
+    When switch.bosch_dhw_disinfecting turns on, snapshots the circulation
+    pump state into a scene and turns the pump off.
+  trigger:
+    - platform: state
+      entity_id: switch.bosch_dhw_disinfecting
+      to: "on"
+
+  action:
+    - variables:
+        circ_before: "{{ states('switch.bosch_dhw_circulation_active') }}"
+
+    - service: scene.create
+      data:
+        scene_id: dhw_before_disinfection
+        snapshot_entities:
+          - switch.bosch_dhw_circulation_active
+
+    - service: switch.turn_off
+      target:
+        entity_id: switch.bosch_dhw_circulation_active
+
+    - service: logbook.log
+      data:
+        name: "Bosch DHW Disinfection"
+        message: >
+          Disinfection started. Circulation was {{ circ_before | upper }}
+          before disinfection — turned off, state saved in scene for restore.
+        entity_id: switch.bosch_dhw_disinfecting
+
+  mode: single
+
+- id: bosch_dhw_disinfection_restore_circulation
+  alias: "Bosch DHW — Restore circulation after disinfection"
+  description: >
+    When switch.bosch_dhw_disinfecting turns off, restores the circulation
+    pump to its pre-disinfection state via the saved scene.
+  trigger:
+    - platform: state
+      entity_id: switch.bosch_dhw_disinfecting
+      to: "off"
+
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('scene.dhw_before_disinfection') not in ['unknown', 'unavailable', 'none'] }}
+
+  action:
+    - service: scene.turn_on
+      target:
+        entity_id: scene.dhw_before_disinfection
+
+    - service: logbook.log
+      data:
+        name: "Bosch DHW Disinfection"
+        message: "Disinfection complete. Circulation pump restored to pre-disinfection state."
+        entity_id: switch.bosch_dhw_disinfecting
+
+  mode: single
+
+- id: vallox_cold_weather_speed
+  alias: "Vallox — Reduce Speed (Cold Weather)"
+  description: >
+    Reduces ventilation speed at outdoor temperatures below -10°C to save energy.
+    Three tiers: 47% (−10 to −15°C), 37% (−15 to −20°C), 28% (<−20°C).
+    CO2 > 1000 ppm or humidity > 65% overrides with a 50% floor.
+    Sends mobile notification whenever speed is changed.
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.bosch_outside_temperature
+      below: -10
+    - trigger: numeric_state
+      entity_id: sensor.bosch_outside_temperature
+      below: -15
+    - trigger: numeric_state
+      entity_id: sensor.bosch_outside_temperature
+      below: -20
+  actions:
+    - variables:
+        outdoor_temp: "{{ states('sensor.bosch_outside_temperature') | float(99) }}"
+    - condition: template
+      value_template: "{{ outdoor_temp < -10 }}"
+    - variables:
+        # sensor.vallox_co2 = Vallox built-in CO2 sensor (verify entity ID in HA: Developer Tools → States)
+        # sensor.magamistuba_co2 = bedroom CO2 sensor (verify entity ID in HA)
+        co2_high: >
+          {{ (states('sensor.co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.co2') | float(0) > 1000)
+             or (states('sensor.vallox_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.vallox_co2') | float(0) > 1000)
+             or (states('sensor.magamistuba_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.magamistuba_co2') | float(0) > 1000) }}
+        humidity_high: "{{ states('sensor.humidity') | float(0) > 65 }}"
+        cold_speed: >
+          {% if outdoor_temp < -20 %}28
+          {% elif outdoor_temp < -15 %}37
+          {% else %}47{% endif %}
+        target_speed: >
+          {% if (co2_high or humidity_high) and cold_speed | int < 50 %}50
+          {% else %}{{ cold_speed }}{% endif %}
+    - action: vallox.set_profile_fan_speed_home
+      data:
+        fan_speed_home: "{{ target_speed | int }}"
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.vallox_cold_mode_active
+    - action: notify.notify
+      data:
+        title: "🌡️ Vallox — Cold Weather Mode"
+        message: >
+          Ventilation reduced to {{ target_speed }}%
+          (outdoor {{ outdoor_temp | round(1) }}°C).
+          {% if co2_high %} CO2 override active (floor 50%). {% endif %}
+          {% if humidity_high %} Humidity override: {{ states('sensor.humidity') | int }}% (floor 50%). {% endif %}
+  mode: single
+
+- id: vallox_restore_normal_speed
+  alias: "Vallox — Restore Normal Speed"
+  description: >
+    Restores Vallox to input_number.vallox_normal_speed when outdoor temperature
+    rises back above −10°C. Only runs if cold mode was previously active
+    (input_boolean.vallox_cold_mode_active tracks this).
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.bosch_outside_temperature
+      above: -10
+  conditions:
+    - condition: state
+      entity_id: input_boolean.vallox_cold_mode_active
+      state: "on"
+  actions:
+    - variables:
+        outdoor_temp: "{{ states('sensor.bosch_outside_temperature') | float(0) }}"
+        normal_speed: "{{ states('input_number.vallox_normal_speed') | int(62) }}"
+    - action: vallox.set_profile_fan_speed_home
+      data:
+        fan_speed_home: "{{ normal_speed }}"
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.vallox_cold_mode_active
+    - action: notify.notify
+      data:
+        title: "✅ Vallox — Normal Ventilation Restored"
+        message: >
+          Ventilation restored to {{ normal_speed }}%
+          (outdoor {{ outdoor_temp | round(1) }}°C).
+  mode: single
+
+- id: vallox_startup_profile_fix
+  alias: "Vallox — Startup Profile Fix"
+  description: >
+    On HA restart, Vallox may revert to Fireplace profile (HA issue #100043).
+    Waits 10 s for entities to load then calls vallox.set_profile_fan_speed_home
+    with the correct speed for current outdoor conditions. Also syncs the
+    cold-mode boolean. Does not send notifications.
+  triggers:
+    - trigger: homeassistant
+      event: start
+  conditions: []
+  actions:
+    - delay: "00:00:10"
+    - variables:
+        outdoor_temp: "{{ states('sensor.bosch_outside_temperature') | float(99) }}"
+        co2_high: >
+          {{ (states('sensor.co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.co2') | float(0) > 1000)
+             or (states('sensor.vallox_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.vallox_co2') | float(0) > 1000)
+             or (states('sensor.magamistuba_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.magamistuba_co2') | float(0) > 1000) }}
+        humidity_high: "{{ states('sensor.humidity') | float(0) > 65 }}"
+        cold_speed: >
+          {% if outdoor_temp < -20 %}28
+          {% elif outdoor_temp < -15 %}37
+          {% elif outdoor_temp < -10 %}47
+          {% else %}{{ states('input_number.vallox_normal_speed') | int(62) }}{% endif %}
+        target_speed: >
+          {% if (co2_high or humidity_high) and cold_speed | int < 50 %}50
+          {% else %}{{ cold_speed }}{% endif %}
+    - action: vallox.set_profile_fan_speed_home
+      data:
+        fan_speed_home: "{{ target_speed | int }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ outdoor_temp < -10 }}"
+          sequence:
+            - action: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.vallox_cold_mode_active
+      default:
+        - action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.vallox_cold_mode_active
+  mode: single
+
+- id: vallox_air_quality_override
+  alias: "Vallox — Air Quality Override During Cold Mode"
+  description: >
+    If CO2 exceeds 1000 ppm on any available CO2 sensor (sensor.co2, sensor.vallox_co2,
+    sensor.magamistuba_co2 — verify exact entity IDs in HA: Developer Tools → States)
+    or humidity exceeds 65% while cold mode is active, raises ventilation to 50%.
+    numeric_state triggers are naturally guarded: they do not fire on unavailable states.
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.co2
+      above: 1000
+    - trigger: numeric_state
+      entity_id: sensor.vallox_co2
+      above: 1000
+    - trigger: numeric_state
+      entity_id: sensor.magamistuba_co2
+      above: 1000
+    - trigger: numeric_state
+      entity_id: sensor.humidity
+      above: 65
+  conditions:
+    - condition: state
+      entity_id: input_boolean.vallox_cold_mode_active
+      state: "on"
+  actions:
+    - variables:
+        co2_any_high: >
+          {{ (states('sensor.co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.co2') | float(0) > 1000)
+             or (states('sensor.vallox_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.vallox_co2') | float(0) > 1000)
+             or (states('sensor.magamistuba_co2') not in ['unavailable', 'unknown', 'none'] and states('sensor.magamistuba_co2') | float(0) > 1000) }}
+        humidity_pct: "{{ states('sensor.humidity') | int(0) }}"
+    - action: vallox.set_profile_fan_speed_home
+      data:
+        fan_speed_home: 50
+    - action: notify.notify
+      data:
+        title: "🌬️ Vallox — Air Quality Override"
+        message: >
+          {% if co2_any_high %}
+          CO2 above 1000 ppm — ventilation raised to 50% despite cold weather.
+          {% else %}
+          Humidity at {{ humidity_pct }}% — ventilation raised to 50% despite cold weather.
+          {% endif %}
+  mode: single
+
 - id: 'reset_monthly_cost_adjustments'
   alias: 'Reset monthly cost adjustment helpers on 1st of each month'
   description: >
