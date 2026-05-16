@@ -1,0 +1,59 @@
+type: vertical-stack
+cards:
+  - type: entities
+    title: Vallox Ventilation
+    entities:
+      - entity: fan.vallox
+        name: Fan Speed
+        icon: mdi:fan
+      - entity: sensor.boiler_outdoortemp
+        name: Outdoor Temperature
+        icon: mdi:thermometer
+      - type: section
+        label: Air Quality
+      - entity: sensor.ohukvaliteet_niiskus
+        name: Humidity (bedroom)
+        icon: mdi:water-percent
+      - entity: sensor.temperature_and_humidity_se_niiskus
+        name: Humidity (Arvutituba)
+        icon: mdi:water-percent
+      - entity: sensor.ohukvaliteet_susihappegaas
+        name: CO2
+        icon: mdi:molecule-co2
+      - entity: sensor.vallox_susihappegaas
+        name: PM2.5
+        icon: mdi:blur
+  - type: horizontal-stack
+    cards:
+      - type: gauge
+        entity: sensor.ohukvaliteet_susihappegaas
+        name: CO2
+        min: 300
+        max: 1500
+        segments:
+          - from: 0
+            color: "#4caf50"
+          - from: 600
+            color: "#ff9800"
+          - from: 1000
+            color: "#f44336"
+      - type: gauge
+        entity: sensor.ohukvaliteet_pm25
+        name: PM2.5
+        min: 0
+        max: 50
+        segments:
+          - from: 0
+            color: "#4caf50"
+          - from: 25
+            color: "#f44336"
+  - type: markdown
+    content: >
+      {% set temp = states('sensor.boiler_outdoortemp') | float(99) %} {% set
+      speed = state_attr('fan.vallox', 'percentage') | int(0) %} {% if temp <
+      -20 %} 🔴 **Cold Mode: Critical** — Fan at {{ speed }}% (outdoor {{ temp |
+      round(1) }}°C, target 28%) {% elif temp < -15 %} 🟠 **Cold Mode: Severe**
+      — Fan at {{ speed }}% (outdoor {{ temp | round(1) }}°C, target 37%) {%
+      elif temp < -10 %} 🟡 **Cold Mode: Active** — Fan at {{ speed }}% (outdoor
+      {{ temp | round(1) }}°C, target 47%) {% else %} 🟢 **Normal Ventilation**
+      — Fan at {{ speed }}% (outdoor {{ temp | round(1) }}°C) {% endif %}
