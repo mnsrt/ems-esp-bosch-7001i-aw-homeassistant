@@ -104,9 +104,9 @@ template:
               {% set dow = dt.weekday() %}
               {% set hr = dt.hour %}
               {% if dow < 5 and hr >= 7 and hr < 22 %}
-                {% set price = 0.1006 %}
+                {% set price = 0.1190 %}
               {% else %}
-                {% set price = 0.0805 %}
+                {% set price = 0.0990 %}
               {% endif %}
               {% set delta = base_temp - (h.temperature | float) %}
               {% if delta > 0 %}
@@ -116,7 +116,7 @@ template:
           {% else %}
             {# Fallback: use current outdoor temp for all 24h with blended avg tariff #}
             {# 15h day-rate + 9h night-rate on a typical weekday #}
-            {% set avg_price = (15 * 0.1006 + 9 * 0.0805) / 24 %}
+            {% set avg_price = (15 * 0.1190 + 9 * 0.0990) / 24 %}
             {% set delta = base_temp - current_outdoor %}
             {% if delta > 0 %}
               {% set ns.total = watt_per_degree * delta * 24 / 1000 * avg_price %}
@@ -223,7 +223,7 @@ template:
             {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
             {{ (power / 1000 * price * 1.24) | round(4) }}
 
-        # Fixed two-tariff contract: day 10.06 snt/kWh, night 8.05 snt/kWh (incl. 24% VAT)
+        # Fixed two-tariff contract: day 11.90 snt/kWh, night 9.90 snt/kWh (incl. 24% VAT)
         # Day: Mon–Fri 07:00–22:00  |  Night: all other times
       - name: "Fixed Tariff Current Price"
         unique_id: fixed_tariff_current_price
@@ -234,9 +234,9 @@ template:
           {% set h = now().hour %}
           {% set dow = now().weekday() %}
           {% if dow < 5 and h >= 7 and h < 22 %}
-            10.06
+            11.90
           {% else %}
-            8.05
+            9.90
           {% endif %}
 
       - name: "HP Fixed Running Cost"
