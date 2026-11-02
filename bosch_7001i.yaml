@@ -155,6 +155,13 @@ views:
                     entity: sensor.hp_live_running_cost
                     name: Market Cost/h
                     icon: mdi:currency-eur
+              - type: entities
+                title: Fixed Tariff Prices (snt/kWh incl. VAT)
+                entities:
+                  - entity: input_number.fixed_tariff_day_price
+                    name: Day (Mon–Fri 07–22)
+                  - entity: input_number.fixed_tariff_night_price
+                    name: Night
               - type: heading
                 heading: Today
                 heading_style: subtitle

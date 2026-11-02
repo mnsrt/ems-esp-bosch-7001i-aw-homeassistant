@@ -104,9 +104,9 @@ template:
               {% set dow = dt.weekday() %}
               {% set hr = dt.hour %}
               {% if dow < 5 and hr >= 7 and hr < 22 %}
-                {% set price = 0.1006 %}
+                {% set price = states('input_number.fixed_tariff_day_price') | float(0) / 100 %}
               {% else %}
-                {% set price = 0.0805 %}
+                {% set price = states('input_number.fixed_tariff_night_price') | float(0) / 100 %}
               {% endif %}
               {% set delta = base_temp - (h.temperature | float) %}
               {% if delta > 0 %}
@@ -116,7 +116,7 @@ template:
           {% else %}
             {# Fallback: use current outdoor temp for all 24h with blended avg tariff #}
             {# 15h day-rate + 9h night-rate on a typical weekday #}
-            {% set avg_price = (15 * 0.1006 + 9 * 0.0805) / 24 %}
+            {% set avg_price = (15 * states('input_number.fixed_tariff_day_price') | float(0) + 9 * states('input_number.fixed_tariff_night_price') | float(0)) / 2400 %}
             {% set delta = base_temp - current_outdoor %}
             {% if delta > 0 %}
               {% set ns.total = watt_per_degree * delta * 24 / 1000 * avg_price %}
@@ -223,7 +223,7 @@ template:
             {% set power = states('sensor.boiler_hpcurrpower') | float(0) %}
             {{ (power / 1000 * price * 1.24) | round(4) }}
 
-        # Fixed two-tariff contract: day 10.06 snt/kWh, night 8.05 snt/kWh (incl. 24% VAT)
+        # Fixed two-tariff contract, prices from input_number.fixed_tariff_day/night_price (snt/kWh incl. VAT)
         # Day: Mon–Fri 07:00–22:00  |  Night: all other times
       - name: "Fixed Tariff Current Price"
         unique_id: fixed_tariff_current_price
@@ -234,9 +234,9 @@ template:
           {% set h = now().hour %}
           {% set dow = now().weekday() %}
           {% if dow < 5 and h >= 7 and h < 22 %}
-            10.06
+            {{ states('input_number.fixed_tariff_day_price') | float(0) }}
           {% else %}
-            8.05
+            {{ states('input_number.fixed_tariff_night_price') | float(0) }}
           {% endif %}
 
       - name: "HP Fixed Running Cost"
@@ -428,6 +428,24 @@ sensor:
 
 
 input_number:
+  fixed_tariff_day_price:
+    name: "Fixed Tariff Day Price"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    unit_of_measurement: "snt/kWh"
+    icon: mdi:weather-sunny
+
+  fixed_tariff_night_price:
+    name: "Fixed Tariff Night Price"
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    unit_of_measurement: "snt/kWh"
+    icon: mdi:weather-night
+
   monthly_fixed_tariff_cost_adjustment:
     name: "Monthly Fixed Tariff Cost Adjustment"
     min: -500
